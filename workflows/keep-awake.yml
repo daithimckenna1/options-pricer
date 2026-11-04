@@ -1,0 +1,45 @@
+# Opens the Streamlit app every 6 hours so it doesn't go to sleep
+name: Keep Streamlit app awake
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+  workflow_dispatch:         # lets me run it by hand from GitHub
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install a headless browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Visit the app
+        run: |
+          python - <<'EOF'
+          from playwright.sync_api import sync_playwright
+
+          URL = "https://mckenna-options-pricer.streamlit.app"
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              page.goto(URL, timeout=60000)
+              page.wait_for_timeout(5000)
+
+              # If the app is asleep, Streamlit shows a wake-up button
+              button = page.get_by_role("button", name="Yes, get this app back up!")
+              if button.count() > 0:
+                  button.click()
+                  print("App was asleep - woke it up")
+                  page.wait_for_timeout(30000)
+              else:
+                  print("App was already awake")
+
+              browser.close()
+          EOF
